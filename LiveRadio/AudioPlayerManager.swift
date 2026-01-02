@@ -2,7 +2,6 @@ import Foundation
 import AVFoundation
 import MediaPlayer
 import Combine
-import ShazamKit
 
 @MainActor
 class AudioPlayerManager: NSObject, ObservableObject {
@@ -13,10 +12,8 @@ class AudioPlayerManager: NSObject, ObservableObject {
     @Published var isPoweredOn = false
     @Published var error: String?
     @Published var audioLevels: [CGFloat] = Array(repeating: 0.0, count: 11)
-    @Published var isIdentifyingTrack = false
 
     private var player: AVPlayer?
-    private var shazamController: SHManagedSession?
     private var playerItem: AVPlayerItem?
     private var statusObserver: NSKeyValueObservation?
     private var currentStationIndex: Int = 0
@@ -417,50 +414,5 @@ class AudioPlayerManager: NSObject, ObservableObject {
                 audioLevels[i] = audioLevels[i] + (targetLevel - audioLevels[i]) * 0.15
             }
         }
-    }
-
-    // MARK: - Track Identification (Shazam)
-
-    func identifyTrack() {
-        guard !isIdentifyingTrack else { return }
-
-        isIdentifyingTrack = true
-
-        // Use SHManagedSession for system-managed Shazam
-        shazamController = SHManagedSession()
-
-        Task {
-            do {
-                let result = try await shazamController?.result()
-                await MainActor.run {
-                    switch result {
-                    case .match(let match):
-                        if let item = match.mediaItems.first,
-                           let appleMusicURL = item.appleMusicURL {
-                            UIApplication.shared.open(appleMusicURL)
-                        }
-                    case .noMatch:
-                        break
-                    case .none:
-                        break
-                    @unknown default:
-                        break
-                    }
-                    isIdentifyingTrack = false
-                    shazamController = nil
-                }
-            } catch {
-                await MainActor.run {
-                    isIdentifyingTrack = false
-                    shazamController = nil
-                }
-            }
-        }
-    }
-
-    func stopIdentifying() {
-        shazamController?.cancel()
-        shazamController = nil
-        isIdentifyingTrack = false
     }
 }

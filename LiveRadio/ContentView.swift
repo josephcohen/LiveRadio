@@ -121,15 +121,11 @@ struct ContentView: View {
                         isPoweredOn: audioManager.isPoweredOn,
                         isPlaying: audioManager.isPlaying,
                         isLoading: audioManager.isLoading,
-                        isIdentifying: audioManager.isIdentifyingTrack,
                         accentColor: accentColor,
                         onPowerToggle: {
                             withAnimation(.easeInOut(duration: 0.2)) {
                                 audioManager.togglePower()
                             }
-                        },
-                        onTrackID: {
-                            audioManager.identifyTrack()
                         },
                         onPrevious: { audioManager.previousStation() },
                         onNext: { audioManager.nextStation() }
@@ -494,10 +490,8 @@ struct ControlBar: View {
     let isPoweredOn: Bool
     let isPlaying: Bool
     let isLoading: Bool
-    let isIdentifying: Bool
     let accentColor: Color
     let onPowerToggle: () -> Void
-    let onTrackID: () -> Void
     let onPrevious: () -> Void
     let onNext: () -> Void
 
@@ -514,22 +508,7 @@ struct ControlBar: View {
             Spacer()
 
             // Playback controls
-            HStack(spacing: 20) {
-                // Track ID button
-                Button(action: onTrackID) {
-                    if isIdentifying {
-                        ProgressView()
-                            .scaleEffect(0.8)
-                            .tint(accentColor)
-                    } else {
-                        Image(systemName: "shazam.logo")
-                            .font(.system(size: 18, weight: .medium))
-                            .foregroundColor(isPoweredOn && isPlaying ? Color(white: 0.7) : .gray.opacity(0.3))
-                    }
-                }
-                .frame(width: 24, height: 24)
-                .disabled(!isPoweredOn || !isPlaying || isIdentifying)
-
+            HStack(spacing: 24) {
                 // Previous station
                 Button(action: onPrevious) {
                     Image(systemName: "backward.end.fill")
