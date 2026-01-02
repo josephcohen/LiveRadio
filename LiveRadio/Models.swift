@@ -136,10 +136,14 @@ class AppSettings: ObservableObject {
     @Published var visualizationStyle: VisualizationStyle {
         didSet { save() }
     }
+    @Published var shuffleOnCategoryChange: Bool {
+        didSet { save() }
+    }
 
     private let appearanceKey = "appearanceMode"
     private let colorSchemeKey = "colorScheme"
     private let visualizationKey = "visualizationStyle"
+    private let shuffleKey = "shuffleOnCategoryChange"
 
     init() {
         if let data = UserDefaults.standard.string(forKey: appearanceKey),
@@ -162,12 +166,15 @@ class AppSettings: ObservableObject {
         } else {
             self.visualizationStyle = .bars
         }
+
+        self.shuffleOnCategoryChange = UserDefaults.standard.object(forKey: shuffleKey) as? Bool ?? true
     }
 
     private func save() {
         UserDefaults.standard.set(appearanceMode.rawValue, forKey: appearanceKey)
         UserDefaults.standard.set(colorScheme.rawValue, forKey: colorSchemeKey)
         UserDefaults.standard.set(visualizationStyle.rawValue, forKey: visualizationKey)
+        UserDefaults.standard.set(shuffleOnCategoryChange, forKey: shuffleKey)
     }
 }
 

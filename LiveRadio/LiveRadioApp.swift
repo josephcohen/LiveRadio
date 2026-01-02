@@ -28,7 +28,7 @@ struct LiveRadioApp: App {
                 .environmentObject(radioStore)
                 .environmentObject(appSettings)
                 .onAppear {
-                    audioManager.configure(with: radioStore)
+                    audioManager.configure(with: radioStore, settings: appSettings)
                 }
         }
     }

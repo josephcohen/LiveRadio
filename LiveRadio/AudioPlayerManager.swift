@@ -20,6 +20,7 @@ class AudioPlayerManager: ObservableObject {
     private var levelTimer: Timer?
     private var levelPhase: Double = 0
     var radioStore: RadioStore?
+    var appSettings: AppSettings?
 
     init() {
         setupAudioSession()
@@ -34,8 +35,9 @@ class AudioPlayerManager: ObservableObject {
 
     // MARK: - Configuration
 
-    func configure(with store: RadioStore) {
+    func configure(with store: RadioStore, settings: AppSettings) {
         self.radioStore = store
+        self.appSettings = settings
 
         // Set initial category to JAZZ, or first category as fallback
         if let jazzCategory = store.categories.first(where: { $0.shortName == "JAZZ" }) {
@@ -225,15 +227,21 @@ class AudioPlayerManager: ObservableObject {
 
         if let stations = radioStore?.stations(for: categoryId),
            !stations.isEmpty {
-            // Shuffle: pick a random station
-            let randomIndex = Int.random(in: 0..<stations.count)
-            currentStationIndex = randomIndex
-            let randomStation = stations[randomIndex]
+            let stationIndex: Int
+            if appSettings?.shuffleOnCategoryChange ?? true {
+                // Shuffle: pick a random station
+                stationIndex = Int.random(in: 0..<stations.count)
+            } else {
+                // Play first station
+                stationIndex = 0
+            }
+            currentStationIndex = stationIndex
+            let station = stations[stationIndex]
 
             if isPoweredOn {
-                play(station: randomStation)
+                play(station: station)
             } else {
-                currentStation = randomStation
+                currentStation = station
             }
         }
     }

@@ -881,6 +881,15 @@ struct SettingsView: View {
                     Text("Appearance")
                 }
 
+                // Playback Section
+                Section {
+                    Toggle("Shuffle on Category Change", isOn: $appSettings.shuffleOnCategoryChange)
+                } header: {
+                    Text("Playback")
+                } footer: {
+                    Text("When enabled, plays a random station when switching categories")
+                }
+
                 // Categories Section
                 Section {
                     ForEach(radioStore.categories) { category in
