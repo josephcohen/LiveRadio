@@ -11,11 +11,14 @@ class AudioPlayerManager: ObservableObject {
     @Published var isLoading = false
     @Published var isPoweredOn = false
     @Published var error: String?
+    @Published var audioLevels: [CGFloat] = Array(repeating: 0.0, count: 11)
 
     private var player: AVPlayer?
     private var playerItem: AVPlayerItem?
     private var statusObserver: NSKeyValueObservation?
     private var currentStationIndex: Int = 0
+    private var levelTimer: Timer?
+    private var levelPhase: Double = 0
     var radioStore: RadioStore?
 
     init() {
@@ -26,6 +29,7 @@ class AudioPlayerManager: ObservableObject {
 
     deinit {
         statusObserver?.invalidate()
+        levelTimer?.invalidate()
     }
 
     // MARK: - Configuration
@@ -124,6 +128,7 @@ class AudioPlayerManager: ObservableObject {
                     self?.isLoading = false
                     self?.player?.play()
                     self?.isPlaying = true
+                    self?.startLevelMonitoring()
                     self?.updateNowPlayingInfo()
                 case .failed:
                     self?.isLoading = false
@@ -147,6 +152,7 @@ class AudioPlayerManager: ObservableObject {
     func stop() {
         player?.pause()
         isPlaying = false
+        stopLevelMonitoring()
         updateNowPlayingInfo()
     }
 
@@ -154,6 +160,7 @@ class AudioPlayerManager: ObservableObject {
         guard isPoweredOn, currentStation != nil else { return }
         player?.play()
         isPlaying = true
+        startLevelMonitoring()
         updateNowPlayingInfo()
     }
 
@@ -328,11 +335,75 @@ class AudioPlayerManager: ObservableObject {
     // MARK: - Share
 
     func shareText() -> String {
-        guard let station = currentStation else { return "Live Radio" }
-        return "Listening to \(station.name) on Live Radio"
+        guard let station = currentStation else { return "Shortwave" }
+        return "Listening to \(station.name) on Shortwave"
     }
 
     func shareURL() -> URL? {
         currentStation?.websiteURL.flatMap { URL(string: $0) }
+    }
+
+    // MARK: - Audio Level Monitoring
+
+    func startLevelMonitoring() {
+        stopLevelMonitoring()
+        levelTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.updateAudioLevels()
+            }
+        }
+    }
+
+    func stopLevelMonitoring() {
+        levelTimer?.invalidate()
+        levelTimer = nil
+        // Fade out levels
+        for i in 0..<audioLevels.count {
+            audioLevels[i] = 0
+        }
+    }
+
+    private func updateAudioLevels() {
+        guard isPlaying else {
+            // Fade out when not playing
+            for i in 0..<audioLevels.count {
+                audioLevels[i] = max(0, audioLevels[i] - 0.1)
+            }
+            return
+        }
+
+        levelPhase += 0.2
+
+        // Generate realistic-looking audio levels
+        // Each "band" has its own characteristics
+        for i in 0..<audioLevels.count {
+            let bandFreq = Double(i + 1) * 0.3
+            let baseLevel: Double
+
+            // Bass frequencies (left side) tend to be higher
+            // Mid frequencies (center) are most active
+            // High frequencies (right side) are more variable
+            if i < 3 {
+                // Bass - slower movement, higher average
+                baseLevel = 0.5 + sin(levelPhase * 0.5 + Double(i)) * 0.2
+            } else if i < 8 {
+                // Mids - most active
+                baseLevel = 0.4 + sin(levelPhase * bandFreq) * 0.3
+            } else {
+                // Highs - faster, more variable
+                baseLevel = 0.3 + sin(levelPhase * 1.5 + Double(i) * 0.5) * 0.25
+            }
+
+            // Add randomness for natural feel
+            let randomVariation = Double.random(in: -0.15...0.15)
+            let targetLevel = max(0.05, min(0.95, baseLevel + randomVariation))
+
+            // Smooth transition (attack faster than decay)
+            if targetLevel > audioLevels[i] {
+                audioLevels[i] = audioLevels[i] + (targetLevel - audioLevels[i]) * 0.4
+            } else {
+                audioLevels[i] = audioLevels[i] + (targetLevel - audioLevels[i]) * 0.15
+            }
+        }
     }
 }

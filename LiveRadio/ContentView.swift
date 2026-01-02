@@ -4,14 +4,23 @@ struct ContentView: View {
     @EnvironmentObject var audioManager: AudioPlayerManager
     @EnvironmentObject var radioStore: RadioStore
     @EnvironmentObject var appSettings: AppSettings
+    @Environment(\.colorScheme) var systemColorScheme
     @State private var showingSettings = false
     @State private var showingInfo = false
     @State private var showingStationList = false
     @State private var selectedCategoryForList: RadioCategory?
     @State private var dialRotation: Double = 0
 
+    private var isLightMode: Bool {
+        switch appSettings.appearanceMode {
+        case .light: return true
+        case .dark: return false
+        case .system: return systemColorScheme == .light
+        }
+    }
+
     private var backgroundColor: Color {
-        appSettings.appearanceMode == .light ? Color(white: 0.95) : Color(red: 0.08, green: 0.08, blue: 0.10)
+        isLightMode ? Color(white: 0.95) : Color(red: 0.08, green: 0.08, blue: 0.10)
     }
 
     private var accentColor: Color {
@@ -63,7 +72,8 @@ struct ContentView: View {
                         isPlaying: audioManager.isPlaying && audioManager.isPoweredOn,
                         accentColor: accentColor,
                         visualizationStyle: appSettings.visualizationStyle,
-                        isLightMode: appSettings.appearanceMode == .light
+                        isLightMode: isLightMode,
+                        audioLevels: audioManager.audioLevels
                     )
                     .frame(width: geometry.size.width * 0.75, height: geometry.size.width * 0.65)
 
@@ -75,6 +85,8 @@ struct ContentView: View {
                         categories: radioStore.categories,
                         rotation: $dialRotation,
                         isPoweredOn: audioManager.isPoweredOn,
+                        accentColor: accentColor,
+                        isLightMode: isLightMode,
                         onCenterTap: {
                             if audioManager.isPoweredOn {
                                 audioManager.nextCategory()
@@ -158,10 +170,10 @@ struct SpeakerGrille: View {
     let accentColor: Color
     let visualizationStyle: VisualizationStyle
     let isLightMode: Bool
+    let audioLevels: [CGFloat]
 
     @State private var animationPhase: Double = 0
     @State private var visualizerMode = false
-    @State private var audioLevels: [CGFloat] = Array(repeating: 0.5, count: 11)
     @State private var matrixStates: [[Bool]] = Array(repeating: Array(repeating: false, count: 11), count: 10)
     @State private var timer: Timer?
 
@@ -312,28 +324,18 @@ struct SpeakerGrille: View {
 
     private func startVisualizerTimer() {
         stopVisualizerTimer()
-        timer = Timer.scheduledTimer(withTimeInterval: 0.08, repeats: true) { _ in
-            withAnimation(.easeOut(duration: 0.08)) {
-                // Update audio levels
-                for i in 0..<audioLevels.count {
-                    let base = 0.3 + Double(i % 3) * 0.1
-                    let random = Double.random(in: -0.3...0.4)
-                    let newLevel = min(1.0, max(0.1, audioLevels[i] * 0.6 + (base + random) * 0.4))
-                    audioLevels[i] = CGFloat(newLevel)
-                }
-
-                // Update matrix states for matrix visualization
-                for row in 0..<rows {
-                    for col in 0..<cols {
-                        if Double.random(in: 0...1) < 0.1 {
-                            matrixStates[row][col].toggle()
-                        }
+        timer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { _ in
+            // Update matrix states for matrix visualization
+            for row in 0..<rows {
+                for col in 0..<cols {
+                    if Double.random(in: 0...1) < 0.1 {
+                        matrixStates[row][col].toggle()
                     }
                 }
-
-                // Update animation phase
-                animationPhase += 0.15
             }
+
+            // Update animation phase
+            animationPhase += 0.15
         }
     }
 
@@ -350,11 +352,57 @@ struct DialView: View {
     let categories: [RadioCategory]
     @Binding var rotation: Double
     let isPoweredOn: Bool
+    let accentColor: Color
+    let isLightMode: Bool
     let onCenterTap: () -> Void
     let onCategoryTap: (RadioCategory) -> Void
 
     @State private var dragStartAngle: Double = 0
     @State private var dragStartRotation: Double = 0
+
+    private var dialGradient: LinearGradient {
+        if isLightMode {
+            return LinearGradient(
+                colors: [Color(white: 0.92), Color(white: 0.85)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        } else {
+            return LinearGradient(
+                colors: [Color(red: 0.18, green: 0.18, blue: 0.20), Color(red: 0.12, green: 0.12, blue: 0.14)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
+    }
+
+    private var centerButtonGradient: LinearGradient {
+        if isLightMode {
+            return LinearGradient(
+                colors: [Color(white: 0.98), Color(white: 0.90)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        } else {
+            return LinearGradient(
+                colors: [Color(white: 0.22), Color(white: 0.15)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
+    }
+
+    private var inactiveLabelColor: Color {
+        isLightMode ? Color(white: 0.45) : Color(white: 0.55)
+    }
+
+    private var notchColor: Color {
+        isLightMode ? Color.black.opacity(0.3) : Color.white.opacity(0.3)
+    }
+
+    private var borderColor: Color {
+        isLightMode ? Color.black.opacity(0.1) : Color.white.opacity(0.1)
+    }
 
     var body: some View {
         GeometryReader { geometry in
@@ -387,7 +435,7 @@ struct DialView: View {
                     }) {
                         Text(category.shortName)
                             .font(.system(size: 14, weight: .bold, design: .rounded))
-                            .foregroundColor(category.id == currentCategory?.id ? .orange : Color(white: 0.55))
+                            .foregroundColor(category.id == currentCategory?.id ? accentColor : inactiveLabelColor)
                     }
                     .buttonStyle(.plain)
                     .position(x: xPos, y: yPos)
@@ -397,25 +445,16 @@ struct DialView: View {
                 ZStack {
                     // Dial background
                     Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    Color(red: 0.18, green: 0.18, blue: 0.20),
-                                    Color(red: 0.12, green: 0.12, blue: 0.14)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .shadow(color: .black.opacity(0.4), radius: 6, x: 0, y: 3)
+                        .fill(dialGradient)
+                        .shadow(color: .black.opacity(isLightMode ? 0.15 : 0.4), radius: 6, x: 0, y: 3)
 
                     // Dial border
                     Circle()
-                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                        .stroke(borderColor, lineWidth: 1)
 
                     // Notch indicator on the dial
                     RoundedRectangle(cornerRadius: 2)
-                        .fill(Color.white.opacity(0.3))
+                        .fill(notchColor)
                         .frame(width: 3, height: innerDialDiameter * 0.15)
                         .offset(y: -innerDialDiameter * 0.35)
                         .rotationEffect(.degrees(rotation))
@@ -426,21 +465,15 @@ struct DialView: View {
                 Button(action: onCenterTap) {
                     ZStack {
                         Circle()
-                            .fill(
-                                LinearGradient(
-                                    colors: [Color(white: 0.22), Color(white: 0.15)],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                            .shadow(color: .black.opacity(0.3), radius: 3, x: 0, y: 1)
+                            .fill(centerButtonGradient)
+                            .shadow(color: .black.opacity(isLightMode ? 0.1 : 0.3), radius: 3, x: 0, y: 1)
 
                         Circle()
-                            .stroke(Color.white.opacity(0.15), lineWidth: 1)
+                            .stroke(borderColor, lineWidth: 1)
 
                         Image(systemName: currentCategory?.icon ?? "radio")
                             .font(.system(size: centerButtonDiameter * 0.35, weight: .medium))
-                            .foregroundColor(isPoweredOn ? .orange : .gray.opacity(0.4))
+                            .foregroundColor(isPoweredOn ? accentColor : .gray.opacity(0.4))
                     }
                     .frame(width: centerButtonDiameter, height: centerButtonDiameter)
                 }
