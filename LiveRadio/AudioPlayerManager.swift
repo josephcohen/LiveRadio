@@ -5,7 +5,7 @@ import Combine
 import ShazamKit
 
 @MainActor
-class AudioPlayerManager: ObservableObject {
+class AudioPlayerManager: NSObject, ObservableObject {
     @Published var currentCategoryId: String = ""
     @Published var currentStation: RadioStation?
     @Published var isPlaying = false
@@ -28,7 +28,8 @@ class AudioPlayerManager: ObservableObject {
     var radioStore: RadioStore?
     var appSettings: AppSettings?
 
-    init() {
+    override init() {
+        super.init()
         setupAudioSession()
         setupRemoteTransportControls()
         setupNotifications()
