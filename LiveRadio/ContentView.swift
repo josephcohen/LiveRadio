@@ -672,12 +672,6 @@ struct TrackIDSheet: View {
                             Text(track.artist ?? "Unknown Artist")
                                 .font(.system(size: 16))
                                 .foregroundColor(.secondary)
-
-                            if let album = track.albumTitle {
-                                Text(album)
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.secondary)
-                            }
                         }
 
                         // Apple Music button
