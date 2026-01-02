@@ -8,6 +8,7 @@ struct ContentView: View {
     @State private var showingSettings = false
     @State private var showingInfo = false
     @State private var showingStationList = false
+    @State private var showingVisualizationPicker = false
     @State private var selectedCategoryForList: RadioCategory?
     @State private var dialRotation: Double = 0
 
@@ -73,7 +74,8 @@ struct ContentView: View {
                         accentColor: accentColor,
                         visualizationStyle: appSettings.visualizationStyle,
                         isLightMode: isLightMode,
-                        audioLevels: audioManager.audioLevels
+                        audioLevels: audioManager.audioLevels,
+                        showVisualizationSettings: $showingVisualizationPicker
                     )
                     .frame(width: geometry.size.width * 0.75, height: geometry.size.width * 0.65)
 
@@ -159,6 +161,20 @@ struct ContentView: View {
                     .presentationDetents([.medium, .large])
             }
         }
+        .sheet(isPresented: $showingVisualizationPicker) {
+            NavigationView {
+                VisualizationPickerView()
+                    .environmentObject(appSettings)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") {
+                                showingVisualizationPicker = false
+                            }
+                        }
+                    }
+            }
+            .presentationDetents([.medium])
+        }
         .preferredColorScheme(appSettings.appearanceMode == .system ? nil : (appSettings.appearanceMode == .dark ? .dark : .light))
     }
 }
@@ -171,6 +187,7 @@ struct SpeakerGrille: View {
     let visualizationStyle: VisualizationStyle
     let isLightMode: Bool
     let audioLevels: [CGFloat]
+    @Binding var showVisualizationSettings: Bool
 
     @State private var animationPhase: Double = 0
     @State private var visualizerMode = false
@@ -294,6 +311,9 @@ struct SpeakerGrille: View {
                         stopVisualizerTimer()
                     }
                 }
+            }
+            .onLongPressGesture(minimumDuration: 0.5) {
+                showVisualizationSettings = true
             }
         }
         .onAppear {
