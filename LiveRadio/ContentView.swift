@@ -808,9 +808,14 @@ struct StationListSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Text("\(stations.count) stations")
-                        .font(.system(size: 13))
-                        .foregroundColor(accentColor)
+                    HStack(spacing: 4) {
+                        Image(systemName: category.icon)
+                            .font(.system(size: 12, weight: .semibold))
+                        Text("\(stations.count)")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    .foregroundColor(accentColor)
+                    .fixedSize()
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") {
