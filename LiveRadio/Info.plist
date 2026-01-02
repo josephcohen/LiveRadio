@@ -16,5 +16,7 @@
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Shortwave uses the microphone to identify the currently playing song</string>
 </dict>
 </plist>

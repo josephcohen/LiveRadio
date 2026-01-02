@@ -2,6 +2,7 @@ import Foundation
 import AVFoundation
 import MediaPlayer
 import Combine
+import ShazamKit
 
 @MainActor
 class AudioPlayerManager: ObservableObject {
@@ -12,8 +13,13 @@ class AudioPlayerManager: ObservableObject {
     @Published var isPoweredOn = false
     @Published var error: String?
     @Published var audioLevels: [CGFloat] = Array(repeating: 0.0, count: 11)
+    @Published var isIdentifyingTrack = false
+    @Published var identifiedTrack: SHMatchedMediaItem?
+    @Published var trackIDError: String?
 
     private var player: AVPlayer?
+    private var shazamSession: SHSession?
+    private var audioEngine: AVAudioEngine?
     private var playerItem: AVPlayerItem?
     private var statusObserver: NSKeyValueObservation?
     private var currentStationIndex: Int = 0
@@ -412,6 +418,73 @@ class AudioPlayerManager: ObservableObject {
             } else {
                 audioLevels[i] = audioLevels[i] + (targetLevel - audioLevels[i]) * 0.15
             }
+        }
+    }
+
+    // MARK: - Track Identification (Shazam)
+
+    func identifyTrack() {
+        guard !isIdentifyingTrack else { return }
+
+        isIdentifyingTrack = true
+        identifiedTrack = nil
+        trackIDError = nil
+
+        shazamSession = SHSession()
+        shazamSession?.delegate = self
+        audioEngine = AVAudioEngine()
+
+        let inputNode = audioEngine!.inputNode
+        let recordingFormat = inputNode.outputFormat(forBus: 0)
+
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { [weak self] buffer, _ in
+            self?.shazamSession?.matchStreamingBuffer(buffer, at: nil)
+        }
+
+        do {
+            try audioEngine?.start()
+            // Stop after 10 seconds if no match
+            DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
+                if self?.isIdentifyingTrack == true && self?.identifiedTrack == nil {
+                    self?.stopIdentifying()
+                    self?.trackIDError = "Could not identify track"
+                }
+            }
+        } catch {
+            isIdentifyingTrack = false
+            trackIDError = "Failed to start audio capture"
+        }
+    }
+
+    func stopIdentifying() {
+        audioEngine?.stop()
+        audioEngine?.inputNode.removeTap(onBus: 0)
+        audioEngine = nil
+        shazamSession = nil
+        isIdentifyingTrack = false
+    }
+
+    func clearIdentifiedTrack() {
+        identifiedTrack = nil
+        trackIDError = nil
+    }
+}
+
+// MARK: - SHSessionDelegate
+
+extension AudioPlayerManager: SHSessionDelegate {
+    nonisolated func session(_ session: SHSession, didFind match: SHMatch) {
+        Task { @MainActor in
+            if let firstMatch = match.mediaItems.first {
+                self.identifiedTrack = firstMatch
+            }
+            self.stopIdentifying()
+        }
+    }
+
+    nonisolated func session(_ session: SHSession, didNotFindMatchFor signature: SHSignature, error: Error?) {
+        Task { @MainActor in
+            // Keep listening, don't stop yet
         }
     }
 }
