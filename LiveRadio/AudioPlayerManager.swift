@@ -14,12 +14,9 @@ class AudioPlayerManager: NSObject, ObservableObject {
     @Published var error: String?
     @Published var audioLevels: [CGFloat] = Array(repeating: 0.0, count: 11)
     @Published var isIdentifyingTrack = false
-    @Published var identifiedTrack: SHMatchedMediaItem?
-    @Published var trackIDError: String?
 
     private var player: AVPlayer?
-    private var shazamSession: SHSession?
-    private var audioEngine: AVAudioEngine?
+    private var shazamController: SHManagedSession?
     private var playerItem: AVPlayerItem?
     private var statusObserver: NSKeyValueObservation?
     private var currentStationIndex: Int = 0
@@ -428,81 +425,42 @@ class AudioPlayerManager: NSObject, ObservableObject {
         guard !isIdentifyingTrack else { return }
 
         isIdentifyingTrack = true
-        identifiedTrack = nil
-        trackIDError = nil
 
-        // Configure audio session for recording
-        do {
-            try AVAudioSession.sharedInstance().setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
-            try AVAudioSession.sharedInstance().setActive(true)
-        } catch {
-            isIdentifyingTrack = false
-            trackIDError = "Failed to configure audio session"
-            return
-        }
+        // Use SHManagedSession for system-managed Shazam
+        shazamController = SHManagedSession()
 
-        shazamSession = SHSession()
-        shazamSession?.delegate = self
-        audioEngine = AVAudioEngine()
-
-        let inputNode = audioEngine!.inputNode
-        let recordingFormat = inputNode.outputFormat(forBus: 0)
-
-        // Use larger buffer for better Shazam recognition
-        inputNode.installTap(onBus: 0, bufferSize: 8192, format: recordingFormat) { [weak self] buffer, _ in
-            self?.shazamSession?.matchStreamingBuffer(buffer, at: nil)
-        }
-
-        do {
-            try audioEngine?.start()
-            // Stop after 12 seconds if no match
-            DispatchQueue.main.asyncAfter(deadline: .now() + 12) { [weak self] in
-                if self?.isIdentifyingTrack == true && self?.identifiedTrack == nil {
-                    self?.stopIdentifying()
-                    self?.trackIDError = "Could not identify track"
+        Task {
+            do {
+                let result = try await shazamController?.result()
+                await MainActor.run {
+                    switch result {
+                    case .match(let match):
+                        if let item = match.mediaItems.first,
+                           let appleMusicURL = item.appleMusicURL {
+                            UIApplication.shared.open(appleMusicURL)
+                        }
+                    case .noMatch:
+                        break
+                    case .none:
+                        break
+                    @unknown default:
+                        break
+                    }
+                    isIdentifyingTrack = false
+                    shazamController = nil
+                }
+            } catch {
+                await MainActor.run {
+                    isIdentifyingTrack = false
+                    shazamController = nil
                 }
             }
-        } catch {
-            isIdentifyingTrack = false
-            trackIDError = "Failed to start audio capture: \(error.localizedDescription)"
-            // Restore playback audio session
-            try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.allowAirPlay, .allowBluetooth])
         }
     }
 
     func stopIdentifying() {
-        audioEngine?.stop()
-        audioEngine?.inputNode.removeTap(onBus: 0)
-        audioEngine = nil
-        shazamSession = nil
+        shazamController?.cancel()
+        shazamController = nil
         isIdentifyingTrack = false
-
-        // Restore playback audio session
-        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.allowAirPlay, .allowBluetooth])
-        try? AVAudioSession.sharedInstance().setActive(true)
-    }
-
-    func clearIdentifiedTrack() {
-        identifiedTrack = nil
-        trackIDError = nil
-    }
-}
-
-// MARK: - SHSessionDelegate
-
-extension AudioPlayerManager: SHSessionDelegate {
-    nonisolated func session(_ session: SHSession, didFind match: SHMatch) {
-        Task { @MainActor in
-            if let firstMatch = match.mediaItems.first {
-                self.identifiedTrack = firstMatch
-            }
-            self.stopIdentifying()
-        }
-    }
-
-    nonisolated func session(_ session: SHSession, didNotFindMatchFor signature: SHSignature, error: Error?) {
-        Task { @MainActor in
-            // Keep listening, don't stop yet
-        }
     }
 }

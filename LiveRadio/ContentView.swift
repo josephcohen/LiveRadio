@@ -1,5 +1,4 @@
 import SwiftUI
-import ShazamKit
 
 struct ContentView: View {
     @EnvironmentObject var audioManager: AudioPlayerManager
@@ -9,7 +8,6 @@ struct ContentView: View {
     @State private var showingSettings = false
     @State private var showingInfo = false
     @State private var showingStationList = false
-    @State private var showingTrackID = false
     @State private var selectedCategoryForList: RadioCategory?
     @State private var dialRotation: Double = 0
 
@@ -132,7 +130,6 @@ struct ContentView: View {
                         },
                         onTrackID: {
                             audioManager.identifyTrack()
-                            showingTrackID = true
                         },
                         onPrevious: { audioManager.previousStation() },
                         onNext: { audioManager.nextStation() }
@@ -141,11 +138,6 @@ struct ContentView: View {
                     .padding(.bottom, 8)
                 }
             }
-        }
-        .sheet(isPresented: $showingTrackID) {
-            TrackIDSheet(accentColor: accentColor)
-                .environmentObject(audioManager)
-                .presentationDetents([.medium])
         }
         .sheet(isPresented: $showingSettings) {
             SettingsView()
@@ -616,128 +608,6 @@ struct LoadingBar: View {
                     animationProgress = 1
                 }
             }
-    }
-}
-
-// MARK: - Track ID Sheet
-
-struct TrackIDSheet: View {
-    let accentColor: Color
-    @EnvironmentObject var audioManager: AudioPlayerManager
-    @Environment(\.dismiss) var dismiss
-
-    var body: some View {
-        NavigationView {
-            VStack(spacing: 24) {
-                if audioManager.isIdentifyingTrack {
-                    // Listening state
-                    VStack(spacing: 20) {
-                        ProgressView()
-                            .scaleEffect(2.0)
-                            .tint(accentColor)
-                            .frame(height: 60)
-
-                        Text("Listening...")
-                            .font(.system(size: 20, weight: .semibold))
-
-                        Text("Hold your device near the speaker")
-                            .font(.system(size: 14))
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(.top, 40)
-                } else if let track = audioManager.identifiedTrack {
-                    // Found track
-                    VStack(spacing: 16) {
-                        // Album art
-                        if let artworkURL = track.artworkURL {
-                            AsyncImage(url: artworkURL) { image in
-                                image
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                            } placeholder: {
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(Color.gray.opacity(0.2))
-                            }
-                            .frame(width: 160, height: 160)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                            .shadow(radius: 8)
-                        } else {
-                            Image(systemName: "music.note")
-                                .font(.system(size: 50))
-                                .foregroundColor(accentColor)
-                                .frame(width: 160, height: 160)
-                                .background(Color.gray.opacity(0.1))
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
-                        }
-
-                        VStack(spacing: 8) {
-                            Text(track.title ?? "Unknown Title")
-                                .font(.system(size: 20, weight: .bold))
-                                .multilineTextAlignment(.center)
-
-                            Text(track.artist ?? "Unknown Artist")
-                                .font(.system(size: 16))
-                                .foregroundColor(.secondary)
-                        }
-
-                        // Apple Music button
-                        if let appleMusicURL = track.appleMusicURL {
-                            Link(destination: appleMusicURL) {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "apple.logo")
-                                    Text("Open in Apple Music")
-                                }
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 12)
-                                .background(Color.pink)
-                                .cornerRadius(10)
-                            }
-                            .padding(.horizontal, 40)
-                            .padding(.top, 8)
-                        }
-                    }
-                } else if let error = audioManager.trackIDError {
-                    // Error state
-                    VStack(spacing: 16) {
-                        Image(systemName: "questionmark.circle")
-                            .font(.system(size: 50))
-                            .foregroundColor(.secondary)
-
-                        Text(error)
-                            .font(.system(size: 16))
-                            .foregroundColor(.secondary)
-
-                        Button("Try Again") {
-                            audioManager.identifyTrack()
-                        }
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 10)
-                        .background(accentColor)
-                        .cornerRadius(8)
-                    }
-                    .padding(.top, 40)
-                }
-
-                Spacer()
-            }
-            .padding(.top, 24)
-            .navigationTitle("Track ID")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        audioManager.stopIdentifying()
-                        audioManager.clearIdentifiedTrack()
-                        dismiss()
-                    }
-                    .fontWeight(.semibold)
-                }
-            }
-        }
     }
 }
 
