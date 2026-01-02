@@ -431,6 +431,16 @@ class AudioPlayerManager: NSObject, ObservableObject {
         identifiedTrack = nil
         trackIDError = nil
 
+        // Configure audio session for recording
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
+            try AVAudioSession.sharedInstance().setActive(true)
+        } catch {
+            isIdentifyingTrack = false
+            trackIDError = "Failed to configure audio session"
+            return
+        }
+
         shazamSession = SHSession()
         shazamSession?.delegate = self
         audioEngine = AVAudioEngine()
@@ -438,14 +448,15 @@ class AudioPlayerManager: NSObject, ObservableObject {
         let inputNode = audioEngine!.inputNode
         let recordingFormat = inputNode.outputFormat(forBus: 0)
 
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { [weak self] buffer, _ in
+        // Use larger buffer for better Shazam recognition
+        inputNode.installTap(onBus: 0, bufferSize: 8192, format: recordingFormat) { [weak self] buffer, _ in
             self?.shazamSession?.matchStreamingBuffer(buffer, at: nil)
         }
 
         do {
             try audioEngine?.start()
-            // Stop after 10 seconds if no match
-            DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
+            // Stop after 12 seconds if no match
+            DispatchQueue.main.asyncAfter(deadline: .now() + 12) { [weak self] in
                 if self?.isIdentifyingTrack == true && self?.identifiedTrack == nil {
                     self?.stopIdentifying()
                     self?.trackIDError = "Could not identify track"
@@ -453,7 +464,9 @@ class AudioPlayerManager: NSObject, ObservableObject {
             }
         } catch {
             isIdentifyingTrack = false
-            trackIDError = "Failed to start audio capture"
+            trackIDError = "Failed to start audio capture: \(error.localizedDescription)"
+            // Restore playback audio session
+            try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.allowAirPlay, .allowBluetooth])
         }
     }
 
@@ -463,6 +476,10 @@ class AudioPlayerManager: NSObject, ObservableObject {
         audioEngine = nil
         shazamSession = nil
         isIdentifyingTrack = false
+
+        // Restore playback audio session
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.allowAirPlay, .allowBluetooth])
+        try? AVAudioSession.sharedInstance().setActive(true)
     }
 
     func clearIdentifiedTrack() {

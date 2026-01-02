@@ -525,11 +525,17 @@ struct ControlBar: View {
             HStack(spacing: 20) {
                 // Track ID button
                 Button(action: onTrackID) {
-                    Image(systemName: isIdentifying ? "waveform" : "shazam.logo")
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundColor(isPoweredOn && isPlaying ? (isIdentifying ? accentColor : Color(white: 0.7)) : .gray.opacity(0.3))
-                        .symbolEffect(.variableColor.iterative, isActive: isIdentifying)
+                    if isIdentifying {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                            .tint(accentColor)
+                    } else {
+                        Image(systemName: "shazam.logo")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundColor(isPoweredOn && isPlaying ? Color(white: 0.7) : .gray.opacity(0.3))
+                    }
                 }
+                .frame(width: 24, height: 24)
                 .disabled(!isPoweredOn || !isPlaying || isIdentifying)
 
                 // Previous station
@@ -625,11 +631,11 @@ struct TrackIDSheet: View {
             VStack(spacing: 24) {
                 if audioManager.isIdentifyingTrack {
                     // Listening state
-                    VStack(spacing: 16) {
-                        Image(systemName: "waveform")
-                            .font(.system(size: 60))
-                            .foregroundColor(accentColor)
-                            .symbolEffect(.variableColor.iterative)
+                    VStack(spacing: 20) {
+                        ProgressView()
+                            .scaleEffect(2.0)
+                            .tint(accentColor)
+                            .frame(height: 60)
 
                         Text("Listening...")
                             .font(.system(size: 20, weight: .semibold))
